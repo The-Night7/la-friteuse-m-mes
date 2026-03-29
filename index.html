@@ -1,32 +1,11 @@
-<!DOCTYPE html>
-<html lang="fr">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>La friteuse à mèmes</title>
-    <!--
-      Cette page est le point d’entrée de l’application React.  Elle expose
-      simplement un conteneur <div id="root"></div> dans lequel
-      React montera le composant principal.  Le CSS est importé via
-      App.css et les scripts JavaScript/TypeScript sont référencés à la
-      fin du document.  Vous devrez construire ou transpiler les sources
-      (index.tsx, App.tsx) avec un bundler comme Vite ou Webpack pour
-      produire du JavaScript utilisable par le navigateur.
-    -->
-    <link rel="stylesheet" href="src/App.css" />
-  </head>
-  <body>
-    <noscript>
-      Vous devez activer JavaScript pour profiter de l'application.
-    </noscript>
-    <div id="root"></div>
-    <!--
-      Incluez ici le script compilé (par exemple dist/main.js) lorsque vous
-      construisez l’application.  Si vous utilisez un outil comme Vite ou
-      Parcel, ce script sera généré automatiquement.  L’importation directe
-      de TypeScript (src/index.tsx) ne fonctionnera pas dans un navigateur
-      sans transpilation.
-    -->
-    <script type="module" src="src/index.tsx"></script>
-  </body>
-</html>
+import { createRoot } from 'react-dom/client';
+import App from './App';
+import './App.css';
+
+// Look up the root container and mount the React application.  This entry
+// point assumes that your host HTML page contains a <div id="root"></div>.
+const container = document.getElementById('root');
+if (container) {
+  const root = createRoot(container);
+  root.render(<App />);
+}
