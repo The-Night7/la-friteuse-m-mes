@@ -1,29 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
 import './App.css';
 
-// Définition des paramètres
 interface FilterSettings {
-  brightness: number; 
-  contrast: number;   
-  saturation: number; 
-  sharpen: number;    
-  noise: number;      
-  blur: number;       
-  satR: number;       
-  satG: number;       
-  satB: number;       
-  jpegTimes: number;  
-  jpegQuality: number; 
+  brightness: number; contrast: number; saturation: number; sharpen: number;
+  noise: number; blur: number; satR: number; satG: number; satB: number;
+  jpegTimes: number; jpegQuality: number;
 }
 
 // --- Fonctions utilitaires ---
 function clamp(value: number): number {
   return Math.max(0, Math.min(255, value));
-}
-
-function adjustBrightnessContrast(color: number, brightness: number, contrast: number): number {
-  const factor = contrast / 100;
-  return clamp((color - 128) * factor + 128 + brightness);
 }
 
 function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
@@ -47,11 +33,10 @@ function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
 function hslToRgb(h: number, s: number, l: number): [number, number, number] {
   let r: number, g: number, b: number;
   if (s === 0) {
-    r = g = b = l; 
+    r = g = b = l;
   } else {
-    const hue2rgb = (p: number, q: number, t: number): number => {
-      if (t < 0) t += 1;
-      if (t > 1) t -= 1;
+    const hue2rgb = (p: number, q: number, t: number) => {
+      if (t < 0) t += 1; if (t > 1) t -= 1;
       if (t < 1 / 6) return p + (q - p) * 6 * t;
       if (t < 1 / 2) return q;
       if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
@@ -59,13 +44,12 @@ function hslToRgb(h: number, s: number, l: number): [number, number, number] {
     };
     const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
     const p = 2 * l - q;
-    r = hue2rgb(p, q, h + 1 / 3);
-    g = hue2rgb(p, q, h);
-    b = hue2rgb(p, q, h - 1 / 3);
+    r = hue2rgb(p, q, h + 1 / 3); g = hue2rgb(p, q, h); b = hue2rgb(p, q, h - 1 / 3);
   }
   return [r * 255, g * 255, b * 255];
 }
 
+// Les filtres spatiaux (Flou et Netteté) doivent garder leurs propres boucles
 function applySharpen(data: Uint8ClampedArray, width: number, height: number, strength: number): Uint8ClampedArray {
   const s = strength / 100;
   const centre = 1 + 4 * s;
@@ -84,18 +68,6 @@ function applySharpen(data: Uint8ClampedArray, width: number, height: number, st
       }
       output[idx + 3] = data[idx + 3];
     }
-  }
-  return output;
-}
-
-function applyNoise(data: Uint8ClampedArray, amplitude: number): Uint8ClampedArray {
-  const output = new Uint8ClampedArray(data);
-  const a = (amplitude / 100) * 255;
-  for (let i = 0; i < data.length; i += 4) {
-    const noise = (Math.random() - 0.5) * a;
-    output[i] = clamp(data[i] + noise);
-    output[i + 1] = clamp(data[i + 1] + noise);
-    output[i + 2] = clamp(data[i + 2] + noise);
   }
   return output;
 }
@@ -119,36 +91,21 @@ function applyBlur(data: Uint8ClampedArray, width: number, height: number, radiu
         }
       }
       const destIdx = (y * width + x) * 4;
-      output[destIdx] = sumR / count;
-      output[destIdx + 1] = sumG / count;
-      output[destIdx + 2] = sumB / count;
-      output[destIdx + 3] = sumA / count;
+      output[destIdx] = sumR / count; output[destIdx + 1] = sumG / count;
+      output[destIdx + 2] = sumB / count; output[destIdx + 3] = sumA / count;
     }
   }
   return output;
 }
 
-function applyChannelSaturation(data: Uint8ClampedArray, factorR: number, factorG: number, factorB: number): Uint8ClampedArray {
-  const output = new Uint8ClampedArray(data);
-  const fR = factorR / 100, fG = factorG / 100, fB = factorB / 100;
-  for (let i = 0; i < data.length; i += 4) {
-    output[i] = clamp(data[i] * fR);
-    output[i + 1] = clamp(data[i + 1] * fG);
-    output[i + 2] = clamp(data[i + 2] * fB);
-    output[i + 3] = data[i + 3];
-  }
-  return output;
-}
-
 async function degradeCanvas(canvas: HTMLCanvasElement, times: number, quality: number): Promise<void> {
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
   if (!ctx) return;
   for (let i = 0; i < times; i++) {
     const dataUrl = canvas.toDataURL('image/jpeg', quality);
     await new Promise<void>((resolve) => {
       const img = new Image();
       img.onload = () => {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         resolve();
       };
@@ -160,14 +117,24 @@ async function degradeCanvas(canvas: HTMLCanvasElement, times: number, quality: 
 // --- Le composant React ---
 const App: React.FC = () => {
   const [originalImage, setOriginalImage] = useState<HTMLImageElement | null>(null);
+  
+  // L'état en temps réel pour l'UI (les curseurs)
   const [settings, setSettings] = useState<FilterSettings>({
     brightness: 15, contrast: 155, saturation: 0, sharpen: 83, noise: 18, blur: 0,
     satR: 100, satG: 100, satB: 100, jpegTimes: 28, jpegQuality: 0.175,
   });
   const [jpegBefore, setJpegBefore] = useState<boolean>(false);
   const [jpegAfter, setJpegAfter] = useState<boolean>(true);
+
+  // Les états debouncés (retardés) pour le calcul lourd
+  const [debouncedSettings, setDebouncedSettings] = useState<FilterSettings>(settings);
+  const [debouncedJpegBefore, setDebouncedJpegBefore] = useState(jpegBefore);
+  const [debouncedJpegAfter, setDebouncedJpegAfter] = useState(jpegAfter);
+  
+  const [isProcessing, setIsProcessing] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
+  // --- Gestion du fichier ---
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
@@ -187,10 +154,23 @@ const App: React.FC = () => {
     setSettings((prev) => ({ ...prev, [field]: value }));
   };
 
+  // --- Le "Debouncer" ---
+  // Met à jour les valeurs de traitement 150ms après que l'utilisateur ait fini de bouger un curseur
+  useEffect(() => {
+    setIsProcessing(true);
+    const timer = setTimeout(() => {
+      setDebouncedSettings(settings);
+      setDebouncedJpegBefore(jpegBefore);
+      setDebouncedJpegAfter(jpegAfter);
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [settings, jpegBefore, jpegAfter]);
+
+  // --- Le Traitement d'Image (Ultra Optimisé) ---
   useEffect(() => {
     if (!originalImage || !canvasRef.current) return;
     const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
     if (!ctx) return;
     
     const maxWidth = 800;
@@ -202,34 +182,51 @@ const App: React.FC = () => {
     ctx.drawImage(originalImage, 0, 0, width, height);
 
     const process = async () => {
-      if (jpegBefore) await degradeCanvas(canvas, settings.jpegTimes, settings.jpegQuality);
+      if (debouncedJpegBefore) await degradeCanvas(canvas, debouncedSettings.jpegTimes, debouncedSettings.jpegQuality);
       
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      let data: any = imageData.data; // On utilise any pour contourner l'erreur de typage strict de TS 5.5+ sur les buffers
+      let data: any = imageData.data;
       
+      // Pré-calcul des facteurs pour éviter de faire le calcul à chaque pixel
+      const bOffset = debouncedSettings.brightness;
+      const cFactor = debouncedSettings.contrast / 100;
+      const satFactor = (debouncedSettings.saturation + 100) / 100;
+      const fR = debouncedSettings.satR / 100;
+      const fG = debouncedSettings.satG / 100;
+      const fB = debouncedSettings.satB / 100;
+      const noiseAmp = (debouncedSettings.noise / 100) * 255;
+
+      // FUSION DE BOUCLES : On fait la luminosité, le contraste, la saturation, le RGB et le bruit en un seul passage !
       for (let i = 0; i < data.length; i += 4) {
-        data[i] = adjustBrightnessContrast(data[i], settings.brightness, settings.contrast);
-        data[i + 1] = adjustBrightnessContrast(data[i + 1], settings.brightness, settings.contrast);
-        data[i + 2] = adjustBrightnessContrast(data[i + 2], settings.brightness, settings.contrast);
+        // 1. Luminosité & Contraste
+        let r = clamp((data[i] - 128) * cFactor + 128 + bOffset);
+        let g = clamp((data[i + 1] - 128) * cFactor + 128 + bOffset);
+        let b = clamp((data[i + 2] - 128) * cFactor + 128 + bOffset);
+
+        // 2. Saturation globale
+        if (satFactor !== 1) {
+          const [h, s, l] = rgbToHsl(r, g, b);
+          const newS = Math.min(1, s * satFactor);
+          const rgb = hslToRgb(h, newS, l);
+          r = rgb[0]; g = rgb[1]; b = rgb[2];
+        }
+
+        // 3. Canaux RGB
+        r = clamp(r * fR); g = clamp(g * fG); b = clamp(b * fB);
+
+        // 4. Bruit (Noise)
+        if (noiseAmp > 0) {
+          const noise = (Math.random() - 0.5) * noiseAmp;
+          r = clamp(r + noise); g = clamp(g + noise); b = clamp(b + noise);
+        }
+
+        // Application finale
+        data[i] = r; data[i + 1] = g; data[i + 2] = b;
       }
       
-      const satFactor = (settings.saturation + 100) / 100;
-      for (let i = 0; i < data.length; i += 4) {
-        const [h, s, l] = rgbToHsl(data[i], data[i + 1], data[i + 2]);
-        const newS = Math.min(1, s * satFactor);
-        const [nr, ng, nb] = hslToRgb(h, newS, l);
-        data[i] = nr; data[i + 1] = ng; data[i + 2] = nb;
-      }
-      
-      if (settings.blur > 0) data = applyBlur(data, canvas.width, canvas.height, settings.blur) as any;
-      
-      if (settings.satR !== 100 || settings.satG !== 100 || settings.satB !== 100) {
-        data = applyChannelSaturation(data, settings.satR, settings.satG, settings.satB) as any;
-      }
-      
-      if (settings.sharpen > 0) data = applySharpen(data, canvas.width, canvas.height, settings.sharpen) as any;
-      
-      if (settings.noise > 0) data = applyNoise(data, settings.noise) as any;
+      // Filtres Spatiaux (nécessitent de lire les pixels voisins, donc passages séparés)
+      if (debouncedSettings.blur > 0) data = applyBlur(data, canvas.width, canvas.height, debouncedSettings.blur) as any;
+      if (debouncedSettings.sharpen > 0) data = applySharpen(data, canvas.width, canvas.height, debouncedSettings.sharpen) as any;
       
       if (data !== imageData.data) {
         ctx.putImageData(new ImageData(data as any, canvas.width, canvas.height), 0, 0);
@@ -237,11 +234,15 @@ const App: React.FC = () => {
         ctx.putImageData(imageData, 0, 0);
       }
       
-      if (jpegAfter) await degradeCanvas(canvas, settings.jpegTimes, settings.jpegQuality);
+      if (debouncedJpegAfter) await degradeCanvas(canvas, debouncedSettings.jpegTimes, debouncedSettings.jpegQuality);
+      
+      setIsProcessing(false); // Fin du traitement !
     };
+    
     process();
-  }, [originalImage, settings, jpegBefore, jpegAfter]);
+  }, [originalImage, debouncedSettings, debouncedJpegBefore, debouncedJpegAfter]);
 
+  // --- Export ---
   const handleDownload = () => {
     if (!canvasRef.current) return;
     const link = document.createElement('a');
@@ -325,11 +326,25 @@ const App: React.FC = () => {
             </div>
           )}
         </section>
-        <section className="canvas-section">
-          <canvas ref={canvasRef} />
-          {originalImage && (
-            <div className="actions">
-              <button className="button" onClick={handleDownload}>Sauvegarder l'image</button>
+        <section className="canvas-section" style={{ position: 'relative' }}>
+          <canvas 
+            ref={canvasRef} 
+            style={{ 
+              opacity: isProcessing ? 0.4 : 1, 
+              transition: 'opacity 0.15s ease-in-out',
+              maxWidth: '100%', height: 'auto', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+            }} 
+          />
+          {isProcessing && originalImage && (
+            <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', fontWeight: 'bold', color: '#333', backgroundColor: 'rgba(255,255,255,0.8)', padding: '8px 16px', borderRadius: '20px' }}>
+              Friture en cours... 🍟
+            </div>
+          )}
+          {originalImage && !isProcessing && (
+            <div className="actions" style={{ marginTop: '15px' }}>
+              <button className="button" onClick={handleDownload} style={{ width: '100%', fontSize: '1.1rem', padding: '12px' }}>
+                Sauvegarder l'image
+              </button>
             </div>
           )}
         </section>
