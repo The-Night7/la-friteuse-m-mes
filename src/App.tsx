@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import './App.css'; // Assurez-vous d'importer votre CSS ici
+import './App.css';
 
 // Définition des paramètres
 interface FilterSettings {
@@ -205,7 +205,7 @@ const App: React.FC = () => {
       if (jpegBefore) await degradeCanvas(canvas, settings.jpegTimes, settings.jpegQuality);
       
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      let data = imageData.data;
+      let data: any = imageData.data; // On utilise any pour contourner l'erreur de typage strict de TS 5.5+ sur les buffers
       
       for (let i = 0; i < data.length; i += 4) {
         data[i] = adjustBrightnessContrast(data[i], settings.brightness, settings.contrast);
@@ -221,18 +221,18 @@ const App: React.FC = () => {
         data[i] = nr; data[i + 1] = ng; data[i + 2] = nb;
       }
       
-      if (settings.blur > 0) data = applyBlur(data, canvas.width, canvas.height, settings.blur);
+      if (settings.blur > 0) data = applyBlur(data, canvas.width, canvas.height, settings.blur) as any;
       
       if (settings.satR !== 100 || settings.satG !== 100 || settings.satB !== 100) {
-        data = applyChannelSaturation(data, settings.satR, settings.satG, settings.satB);
+        data = applyChannelSaturation(data, settings.satR, settings.satG, settings.satB) as any;
       }
       
-      if (settings.sharpen > 0) data = applySharpen(data, canvas.width, canvas.height, settings.sharpen);
+      if (settings.sharpen > 0) data = applySharpen(data, canvas.width, canvas.height, settings.sharpen) as any;
       
-      if (settings.noise > 0) data = applyNoise(data, settings.noise);
+      if (settings.noise > 0) data = applyNoise(data, settings.noise) as any;
       
       if (data !== imageData.data) {
-        ctx.putImageData(new ImageData(data as Uint8ClampedArray, canvas.width, canvas.height), 0, 0);
+        ctx.putImageData(new ImageData(data as any, canvas.width, canvas.height), 0, 0);
       } else {
         ctx.putImageData(imageData, 0, 0);
       }
@@ -266,21 +266,59 @@ const App: React.FC = () => {
           {originalImage && (
             <div className="filters">
               <details open>
-                <summary>Filtres</summary>
+                <summary>Filtres globaux</summary>
                 <div className="slider">
                   <label>Luminosité ({settings.brightness})
                     <input type="range" min={-10} max={30} step={1} value={settings.brightness} onChange={(e) => handleSliderChange('brightness', parseInt(e.target.value, 10))} />
                   </label>
                 </div>
-                {/* Les autres sliders (contraste, saturation, netteté...) sont identiques */}
                 <div className="slider">
                   <label>Contraste ({settings.contrast})
                     <input type="range" min={0} max={300} step={1} value={settings.contrast} onChange={(e) => handleSliderChange('contrast', parseInt(e.target.value, 10))} />
                   </label>
                 </div>
                 <div className="slider">
-                  <label>Dégradation JPEG ({settings.jpegTimes} passes)
+                  <label>Saturation ({settings.saturation})
+                    <input type="range" min={0} max={300} step={1} value={settings.saturation} onChange={(e) => handleSliderChange('saturation', parseInt(e.target.value, 10))} />
+                  </label>
+                </div>
+                <div className="slider">
+                  <label>Netteté ({settings.sharpen})
+                    <input type="range" min={0} max={800} step={1} value={settings.sharpen} onChange={(e) => handleSliderChange('sharpen', parseInt(e.target.value, 10))} />
+                  </label>
+                </div>
+                <div className="slider">
+                  <label>Bruit ({settings.noise})
+                    <input type="range" min={0} max={100} step={1} value={settings.noise} onChange={(e) => handleSliderChange('noise', parseInt(e.target.value, 10))} />
+                  </label>
+                </div>
+                <div className="slider">
+                  <label>Flou ({settings.blur})
+                    <input type="range" min={0} max={10} step={1} value={settings.blur} onChange={(e) => handleSliderChange('blur', parseInt(e.target.value, 10))} />
+                  </label>
+                </div>
+              </details>
+
+              <details open>
+                <summary>Dégradation JPEG</summary>
+                <div className="toggle-group" style={{ display: 'flex', gap: '15px', marginBottom: '10px' }}>
+                  <label>
+                    <input type="checkbox" checked={jpegBefore} onChange={(e) => setJpegBefore(e.target.checked)} />
+                    <span> Avant les filtres</span>
+                  </label>
+                  <label>
+                    <input type="checkbox" checked={jpegAfter} onChange={(e) => setJpegAfter(e.target.checked)} />
+                    <span> Après les filtres</span>
+                  </label>
+                </div>
+                <div className="slider">
+                  <label>Répétitions ({settings.jpegTimes})
                     <input type="range" min={1} max={200} step={1} value={settings.jpegTimes} onChange={(e) => handleSliderChange('jpegTimes', parseInt(e.target.value, 10))} />
+                  </label>
+                </div>
+                <div className="slider">
+                  <label>Qualité ({settings.jpegQuality.toFixed(3)})
+                    <input type="range" min={0} max={0.5} step={0.025} value={settings.jpegQuality} onChange={(e) => handleSliderChange('jpegQuality', parseFloat(e.target.value))} />
                   </label>
                 </div>
               </details>
